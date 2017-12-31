@@ -470,9 +470,14 @@ final class CorePearlConfig implements DocumentConfig, PearlConfig {
 		
 		return upgrades;
 	}
+
+	@Override
+	public boolean allowSummoning() {
+		return doc.getBoolean("pearls.allow_summoning", true);
+	}
 	
 	@Override
 	public boolean allowPearlStealing() {
-		return doc.getBoolean("allow_pearl_stealing", true);
+		return doc.getBoolean("pearls.allow_pearl_stealing", true);
 	}
 }
