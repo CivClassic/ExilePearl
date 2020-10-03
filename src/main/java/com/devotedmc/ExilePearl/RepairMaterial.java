@@ -66,7 +66,7 @@ public class RepairMaterial {
 		Guard.ArgumentNotNull(doc, "doc");
 
 		try {
-			Material m = Material.getMaterial(doc.getString("material"));
+			Material m = Material.getMaterial(doc.getString("material"), false);
 			int repairAmount = doc.getInteger("repair", 1);
 			ItemStack is = new ItemStack(m, 1);
 
@@ -87,6 +87,7 @@ public class RepairMaterial {
 
 			RepairMaterial repair = new RepairMaterial(name, is, repairAmount);
 			return repair;
+			
 		} catch(Exception ex) {
 			return null;
 		}

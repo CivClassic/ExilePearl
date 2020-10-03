@@ -279,11 +279,11 @@ pearls:
         repair: 3
   bastion_harm_amount: 2.0
   upgrade_materials:
-    special_diamond_thing:
+    special_diamond_thing:      
       material: DIAMOND
       repair: 1
       lore:
-       - This is used to upgrade exile pearls to prison pearls
+#       - This is used to upgrade exile pearls to prison pearls
   allow_pearl_stealing: true
   allow_summoning: true
   prison_world: world_the_end

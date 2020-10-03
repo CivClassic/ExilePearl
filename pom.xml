@@ -71,15 +71,15 @@
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
+			<groupId>com.programmerdan.minecraft</groupId>
+			<artifactId>banstick</artifactId>
+			<version>1.2.0</version>
+		</dependency>
+		<dependency>
 			<groupId>com.dre</groupId>
 			<artifactId>brewery</artifactId>
 			<version>1.9.0</version>
 			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>com.programmerdan.minecraft</groupId>
-			<artifactId>banstick</artifactId>
-			<version>1.2.0</version>
 		</dependency>
 	</dependencies>
 
