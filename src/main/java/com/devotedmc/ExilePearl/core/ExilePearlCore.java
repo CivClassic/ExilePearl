@@ -645,6 +645,15 @@ final class ExilePearlCore implements ExilePearlApi {
 		if (isWorldBorderEnabled()) {
 			WorldBorder wb = WorldBorder.plugin;
 			BorderData bd = wb.getWorldBorder(location.getWorld().getName());
+			
+			if (bd == null) {
+				plugin.getLogger().log(Level.SEVERE, plugin.getName()
+						+ " failed to exile! World border for world:<"
+						+ location.getWorld().getName()
+						+ "> has not been set!");
+				return false;
+			}
+			
 			return bd.insideBorder(location);
 		}
 		return true;

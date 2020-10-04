@@ -1180,7 +1180,7 @@ public class PlayerListener implements Listener, Configurable {
 			}
 			for(Set<RepairMaterial> set : repairMaterials.values()) {
 				for(RepairMaterial mat : set) {
-					ShapelessRecipe r1 = new ShapelessRecipe(new NamespacedKey(pearlApi, "repairPearl"), resultItem);
+					ShapelessRecipe r1 = new ShapelessRecipe(new NamespacedKey(pearlApi, "repairPearl_" + mat.getName()), resultItem);
 					r1.addIngredient(1, Material.ENDER_PEARL);
 					r1.addIngredient(1, mat.getStack().getType());
 
