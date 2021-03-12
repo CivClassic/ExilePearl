@@ -21,6 +21,8 @@ import com.devotedmc.ExilePearl.core.CorePluginFactory;
  */
 public final class ExilePearlPlugin extends JavaPlugin {
 
+	private static ExilePearlPlugin instance;
+
 	private static ExilePearlApi core;
 
 	public static ExilePearlApi getApi() {
@@ -60,5 +62,9 @@ public final class ExilePearlPlugin extends JavaPlugin {
 	@Override
 	public List<String> onTabComplete(CommandSender sender, Command cmd, String alias, String[] args) {
 		return core.onTabComplete(sender, cmd, alias, args);
+	}
+
+	public static ExilePearlPlugin getInstance() {
+		return instance;
 	}
 }

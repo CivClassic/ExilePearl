@@ -13,6 +13,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 
+import com.devotedmc.ExilePearl.*;
+import org.apache.commons.lang.ObjectUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -51,42 +53,13 @@ import org.bukkit.event.entity.ItemDespawnEvent;
 import org.bukkit.event.entity.ItemSpawnEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.entity.EntityPortalEvent;
-import org.bukkit.event.inventory.CraftItemEvent;
-import org.bukkit.event.inventory.InventoryAction;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryDragEvent;
-import org.bukkit.event.inventory.InventoryMoveItemEvent;
-import org.bukkit.event.inventory.InventoryOpenEvent;
-import org.bukkit.event.inventory.InventoryPickupItemEvent;
-import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.event.inventory.PrepareItemCraftEvent;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerItemHeldEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerPortalEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.inventory.*;
+import org.bukkit.event.player.*;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.event.world.ChunkUnloadEvent;
-import org.bukkit.inventory.BlockInventoryHolder;
-import org.bukkit.inventory.CraftingInventory;
-import org.bukkit.inventory.FurnaceInventory;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
-import org.bukkit.inventory.ItemFlag;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.PlayerInventory;
-import org.bukkit.inventory.ShapelessRecipe;
+import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import com.devotedmc.ExilePearl.ExilePearl;
-import com.devotedmc.ExilePearl.ExilePearlApi;
-import com.devotedmc.ExilePearl.ExileRule;
-import com.devotedmc.ExilePearl.Lang;
-import com.devotedmc.ExilePearl.PearlFreeReason;
-import com.devotedmc.ExilePearl.PearlType;
-import com.devotedmc.ExilePearl.RepairMaterial;
 import com.devotedmc.ExilePearl.config.Configurable;
 import com.devotedmc.ExilePearl.config.PearlConfig;
 import com.devotedmc.ExilePearl.event.PearlMovedEvent;
@@ -95,12 +68,15 @@ import com.devotedmc.ExilePearl.event.PlayerPearledEvent;
 import com.devotedmc.ExilePearl.util.SpawnUtil;
 
 import net.minelink.ctplus.compat.api.NpcIdentity;
+import vg.civcraft.mc.civmodcore.api.InventoryAPI;
+import vg.civcraft.mc.civmodcore.api.ItemAPI;
 import vg.civcraft.mc.civmodcore.itemHandling.ItemMap;
 import vg.civcraft.mc.civmodcore.util.Guard;
 import vg.civcraft.mc.civmodcore.util.TextUtil;
 
 /**
  * Handles events related to prison pearls
+ *
  * @author GFQ
  */
 public class PlayerListener implements Listener, Configurable {
@@ -117,6 +93,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Creates a new PlayerListener instance
+	 *
 	 * @param pearlApi The pearlApi instance
 	 */
 	public PlayerListener(final ExilePearlApi pearlApi) {
@@ -125,6 +102,26 @@ public class PlayerListener implements Listener, Configurable {
 		this.pearlApi = pearlApi;
 	}
 
+
+	@EventHandler(priority = EventPriority.HIGHEST)
+	public void disablePearlAnvil(final PrepareAnvilEvent event) {
+		final AnvilInventory inventory = event.getInventory();
+		for (final ItemStack item : inventory.all(Material.ENDER_PEARL).values()) {
+			if (!ItemAPI.isValidItem(item)
+					|| item.getType() != Material.ENDER_PEARL
+					|| this.pearlApi.getPearlFromItemStack(item) == null) {
+				continue;
+			}
+			event.setResult(null);
+			// This is needed because of client side shenanigans
+			Bukkit.getScheduler().runTaskLater(ExilePearlPlugin.getInstance(), () -> {
+				for (final Player viewer : InventoryAPI.getViewingPlayers(inventory)) {
+					viewer.updateInventory();
+				}
+			}, 1L);
+			break;
+		}
+	}
 
 	/**
 	 * Announce the person in a pearl when a player holds it
@@ -146,7 +143,7 @@ public class PlayerListener implements Listener, Configurable {
 	 * Updates all pearls in an inventory when opened
 	 * @param e The event args
 	 */
-	@EventHandler(priority=EventPriority.MONITOR, ignoreCancelled = true)
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onInventoryOpen(InventoryOpenEvent e) {
 		Inventory inv = e.getInventory();
 		HashMap<Integer, ItemStack> potentialPearls = new HashMap<>();
@@ -163,6 +160,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Validates an ender pearl item
+	 *
 	 * @param item The item to check
 	 * @return the updated item
 	 */
@@ -186,6 +184,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Track the location of a pearl if it spawns as an item for any reason
+	 *
 	 * @param e The event args
 	 */
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -203,12 +202,12 @@ public class PlayerListener implements Listener, Configurable {
 	// Prevent dropped pearls from going through portals
 	@EventHandler
 	public void onItemSpawn(EntityPortalEvent e) {
-		if(!(e.getEntity() instanceof Item)){
+		if (!(e.getEntity() instanceof Item)) {
 			return;
 		}
 		Item item = (Item) e.getEntity();
 		ExilePearl pearl = pearlApi.getPearlFromItemStack(item.getItemStack());
-		if(pearl != null){
+		if (pearl != null) {
 			e.setCancelled(true);
 		}
 	}
@@ -217,7 +216,7 @@ public class PlayerListener implements Listener, Configurable {
 	@EventHandler
 	public void onInventoryPickupItem(InventoryPickupItemEvent e) {
 		ExilePearl pearl = pearlApi.getPearlFromItemStack(e.getItem().getItemStack());
-		if(pearl != null){
+		if (pearl != null) {
 			if (e.getInventory().getHolder() instanceof HopperMinecart) {
 				e.setCancelled(true);
 			} else if (e.getInventory().getType() == InventoryType.HOPPER) {
@@ -230,13 +229,14 @@ public class PlayerListener implements Listener, Configurable {
 	@EventHandler
 	public void onInventoryMoveItemEvent(InventoryMoveItemEvent e) {
 		ExilePearl pearl = pearlApi.getPearlFromItemStack(e.getItem());
-		if(pearl != null){
+		if (pearl != null) {
 			e.setCancelled(true);
 		}
 	}
 
 	/**
 	 * Drops a pearl when the player leaves the game
+	 *
 	 * @param event The event args
 	 */
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -252,7 +252,7 @@ public class PlayerListener implements Listener, Configurable {
 		World world = imprisoner.getWorld();
 		Inventory inv = imprisoner.getInventory();
 		for (Entry<Integer, ? extends ItemStack> entry :
-			inv.all(Material.ENDER_PEARL).entrySet()) {
+				inv.all(Material.ENDER_PEARL).entrySet()) {
 			ItemStack item = entry.getValue();
 			ExilePearl pearl = pearlApi.getPearlFromItemStack(item);
 			if (pearl == null) {
@@ -266,9 +266,9 @@ public class PlayerListener implements Listener, Configurable {
 	}
 
 
-
 	/**
 	 * Prevents a pearl from despawning
+	 *
 	 * @param e The event args
 	 */
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -283,9 +283,10 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Prevent chunk that contain pearls from unloading
+	 *
 	 * @param e The event args
 	 */
-	@EventHandler(priority=EventPriority.HIGH, ignoreCancelled = true)
+	@EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
 	public void onChunkUnload(ChunkUnloadEvent e) {
 		Chunk chunk = e.getChunk();
 		for (Entity entity : chunk.getEntities()) {
@@ -293,7 +294,7 @@ public class PlayerListener implements Listener, Configurable {
 				continue;
 			}
 
-			Item item = (Item)entity;
+			Item item = (Item) entity;
 			ExilePearl pearl = pearlApi.getPearlFromItemStack(item.getItemStack());
 
 			if (pearl == null) {
@@ -305,7 +306,7 @@ public class PlayerListener implements Listener, Configurable {
 			}
 			block.getDrops().clear();
 			Barrel barrel = (Barrel) block.getState();
-			Map <Integer, ItemStack> notAdded = barrel.getInventory().addItem(item.getItemStack());
+			Map<Integer, ItemStack> notAdded = barrel.getInventory().addItem(item.getItemStack());
 			if (!notAdded.isEmpty()) {
 				pearlApi.freePearl(pearl, PearlFreeReason.CHUNK_UNLOADED);
 				continue;
@@ -318,6 +319,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Free the pearl if it burns up
+	 *
 	 * @param e The event args
 	 */
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -338,6 +340,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Handle inventory dragging properly
+	 *
 	 * @param event
 	 */
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -345,18 +348,18 @@ public class PlayerListener implements Listener, Configurable {
 
 		Map<Integer, ItemStack> items = event.getNewItems();
 
-		for(Integer slot : items.keySet()) {
+		for (Integer slot : items.keySet()) {
 			ItemStack item = items.get(slot);
 
 			ExilePearl pearl = pearlApi.getPearlFromItemStack(item);
-			if(pearl != null) {
+			if (pearl != null) {
 				boolean clickedTop = event.getView().convertSlot(slot) == slot;
 
 				InventoryHolder holder = clickedTop ? event.getView().getTopInventory().getHolder() : event.getView().getBottomInventory().getHolder();
 
 				updatePearlHolder(pearl, holder, event);
 
-				if(event.isCancelled()) {
+				if (event.isCancelled()) {
 					return;
 				}
 			}
@@ -366,14 +369,15 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Updates the pearl holder
-	 * @param pearl The pearl to update
+	 *
+	 * @param pearl  The pearl to update
 	 * @param holder The pearl holder
-	 * @param event The event
+	 * @param event  The event
 	 */
 	private void updatePearlHolder(ExilePearl pearl, InventoryHolder holder, Cancellable event) {
 
 		if (holder instanceof Chest) {
-			updatePearl(pearl, (Chest)holder);
+			updatePearl(pearl, (Chest) holder);
 		} else if (holder instanceof DoubleChest) {
 			updatePearl(pearl, (Chest) ((DoubleChest) holder).getLeftSide());
 		} else if (holder instanceof Furnace) {
@@ -407,6 +411,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Updates the pearl status
+	 *
 	 * @param pearl The prison pearl
 	 * @param block The block storing the pearl
 	 */
@@ -417,8 +422,9 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Updates the pearl status
+	 *
 	 * @param pearl The prison pearl
-	 * @param e The entity holding the pearl
+	 * @param e     The entity holding the pearl
 	 */
 	private void updatePearl(ExilePearl pearl, Entity e) {
 		pearl.setHolder(e);
@@ -427,7 +433,8 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Updates the pearl status
-	 * @param pearl The prison pearl
+	 *
+	 * @param pearl  The prison pearl
 	 * @param player The player holding the pearl
 	 */
 	private void updatePearl(ExilePearl pearl, Player player) {
@@ -437,6 +444,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Prevent imprisoned players from placing ExilePearls in their inventory.
+	 *
 	 * @param e The event args
 	 */
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
@@ -444,7 +452,7 @@ public class PlayerListener implements Listener, Configurable {
 		Player clicker = (Player) e.getWhoClicked();
 
 		ExilePearl pearl = pearlApi.getPearlFromItemStack(e.getCurrentItem());
-		if(pearl != null) {
+		if (pearl != null) {
 			if (pearlApi.isPlayerExiled(clicker)) {
 				msg(clicker, Lang.pearlCantHold);
 				e.setCancelled(true);
@@ -455,6 +463,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Prevent imprisoned players from picking up Prisonpearls.
+	 *
 	 * @param e The event args
 	 */
 	@EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -468,13 +477,14 @@ public class PlayerListener implements Listener, Configurable {
 			return;
 		}
 
-		if (pearlApi.isPlayerExiled((Player)e.getEntity())) {
+		if (pearlApi.isPlayerExiled((Player) e.getEntity())) {
 			e.setCancelled(true);
 		}
 	}
 
 	/**
 	 * Listen for pearl being moved to item frame
+	 *
 	 * @param event
 	 */
 	@EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -491,6 +501,7 @@ public class PlayerListener implements Listener, Configurable {
 	/**
 	 * Track the location of a pearl
 	 * Forbid pearls from being put in storage minecarts
+	 *
 	 * @param event
 	 */
 	@EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -504,33 +515,31 @@ public class PlayerListener implements Listener, Configurable {
 
 		InventoryAction a = event.getAction();
 		//pearlApi.log("Inv Action: " + a.toString());
-		if(a == InventoryAction.COLLECT_TO_CURSOR
-				|| a == InventoryAction.PICKUP_ALL 
+		if (a == InventoryAction.COLLECT_TO_CURSOR
+				|| a == InventoryAction.PICKUP_ALL
 				|| a == InventoryAction.PICKUP_HALF
 				|| a == InventoryAction.PICKUP_ONE) {
 			ExilePearl pearl = pearlApi.getPearlFromItemStack(event.getCurrentItem());
 
-			if(pearl != null) {
+			if (pearl != null) {
 				pearl.setHolder(((Player) event.getWhoClicked()));
 			}
-		}
-		else if(event.getAction() == InventoryAction.PLACE_ALL
+		} else if (event.getAction() == InventoryAction.PLACE_ALL
 				|| event.getAction() == InventoryAction.PLACE_SOME
-				|| event.getAction() == InventoryAction.PLACE_ONE) {	
+				|| event.getAction() == InventoryAction.PLACE_ONE) {
 			ExilePearl pearl = pearlApi.getPearlFromItemStack(event.getCursor());
 
-			if(pearl != null) {
+			if (pearl != null) {
 				boolean clickedTop = event.getRawSlot() < event.getView().getTopInventory().getSize();
 				InventoryHolder holder = clickedTop ? event.getView().getTopInventory().getHolder() : event.getView().getBottomInventory().getHolder();
 				if (holder != null) {
 					updatePearlHolder(pearl, holder, event);
 				}
 			}
-		}
-		else if(event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY) {
+		} else if (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY) {
 			ExilePearl pearl = pearlApi.getPearlFromItemStack(event.getCurrentItem());
 
-			if(pearl != null) {
+			if (pearl != null) {
 				boolean clickedTop = event.getRawSlot() < event.getView().getTopInventory().getSize();
 
 				InventoryHolder holder = !clickedTop ? event.getView().getTopInventory().getHolder() : event.getView().getBottomInventory().getHolder();
@@ -542,16 +551,15 @@ public class PlayerListener implements Listener, Configurable {
 					return;
 				}
 
-				if(holder != null && holder.getInventory().firstEmpty() >= 0) {
+				if (holder != null && holder.getInventory().firstEmpty() >= 0) {
 					updatePearlHolder(pearl, holder, event);
 				}
 			}
-		}
-		else if(event.getAction() == InventoryAction.HOTBAR_SWAP) {
+		} else if (event.getAction() == InventoryAction.HOTBAR_SWAP) {
 			PlayerInventory playerInventory = event.getWhoClicked().getInventory();
 			ExilePearl pearl = pearlApi.getPearlFromItemStack(playerInventory.getItem(event.getHotbarButton()));
 
-			if(pearl != null) {
+			if (pearl != null) {
 				boolean clickedTop = event.getRawSlot() < event.getView().getTopInventory().getSize();
 
 				InventoryHolder holder = clickedTop ? event.getView().getTopInventory().getHolder() : event.getView().getBottomInventory().getHolder();
@@ -559,19 +567,18 @@ public class PlayerListener implements Listener, Configurable {
 				updatePearlHolder(pearl, holder, event);
 			}
 
-			if(event.isCancelled())
+			if (event.isCancelled())
 				return;
 
 			pearl = pearlApi.getPearlFromItemStack(event.getCurrentItem());
 
-			if(pearl != null) {
+			if (pearl != null) {
 				updatePearl(pearl, (Player) event.getWhoClicked());
 			}
-		}
-		else if (event.getAction() == InventoryAction.SWAP_WITH_CURSOR) {
+		} else if (event.getAction() == InventoryAction.SWAP_WITH_CURSOR) {
 			ExilePearl pearl = pearlApi.getPearlFromItemStack(event.getCursor());
 
-			if(pearl != null) {
+			if (pearl != null) {
 				boolean clickedTop = event.getRawSlot() < event.getView().getTopInventory().getSize();
 
 				InventoryHolder holder = clickedTop ? event.getView().getTopInventory().getHolder() : event.getView().getBottomInventory().getHolder();
@@ -579,23 +586,21 @@ public class PlayerListener implements Listener, Configurable {
 				updatePearlHolder(pearl, holder, event);
 			}
 
-			if(event.isCancelled())
+			if (event.isCancelled())
 				return;
 
 			pearl = pearlApi.getPearlFromItemStack(event.getCurrentItem());
 
-			if(pearl != null) {
+			if (pearl != null) {
 				updatePearl(pearl, (Player) event.getWhoClicked());
 			}
-		}
-		else if(event.getAction() == InventoryAction.DROP_ALL_CURSOR
+		} else if (event.getAction() == InventoryAction.DROP_ALL_CURSOR
 				|| event.getAction() == InventoryAction.DROP_ALL_SLOT
 				|| event.getAction() == InventoryAction.DROP_ONE_CURSOR
 				|| event.getAction() == InventoryAction.DROP_ONE_SLOT) {
 			// Handled by onItemSpawn
-		}
-		else if (a != InventoryAction.NOTHING) {
-			if(pearlApi.getPearlFromItemStack(event.getCurrentItem()) != null || pearlApi.getPearlFromItemStack(event.getCursor()) != null) {
+		} else if (a != InventoryAction.NOTHING) {
+			if (pearlApi.getPearlFromItemStack(event.getCurrentItem()) != null || pearlApi.getPearlFromItemStack(event.getCursor()) != null) {
 				((Player) event.getWhoClicked()).sendMessage(ChatColor.RED + "You can't do that with an exile pearl.");
 
 				event.setCancelled(true);
@@ -606,6 +611,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Track the location of a pearl if a player picks it up
+	 *
 	 * @param e The event args
 	 */
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -616,15 +622,16 @@ public class PlayerListener implements Listener, Configurable {
 		if (pearl == null || e.getEntityType() != EntityType.PLAYER) {
 			return;
 		}
-		updatePearl(pearl, (Player)e.getEntity());
+		updatePearl(pearl, (Player) e.getEntity());
 	}
 
 
 	/**
 	 * Imprison people upon death
+	 *
 	 * @param e The event args
 	 */
-	@EventHandler(priority=EventPriority.HIGHEST, ignoreCancelled = true)
+	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
 	public void onEntityDeath(EntityDeathEvent e) {
 		if (!(e.getEntity() instanceof Player)) {
 			return;
@@ -632,43 +639,44 @@ public class PlayerListener implements Listener, Configurable {
 
 		final UUID playerId;
 		Player killer = null;
-		
+
 		// If the player was an NPC, grab the ID from it
 		NpcIdentity npcId = null;
 		try {
-			npcId = pearlApi.getPlayerAsTaggedNpc((Player)e.getEntity());
-		} catch(Exception ex) { }
+			npcId = pearlApi.getPlayerAsTaggedNpc((Player) e.getEntity());
+		} catch (Exception ex) {
+		}
 		if (npcId != null) {
 			playerId = npcId.getId();
 		} else {
-			playerId = ((Player)e.getEntity()).getUniqueId();
+			playerId = ((Player) e.getEntity()).getUniqueId();
 		}
 		ExilePearl pearl = pearlApi.getPearl(playerId);
-		
 
-		if(pearlApi.isPlayerExiled(playerId)
-		   && pearlApi.getPearl(playerId).getPearlType() == PearlType.PRISON
-		   && !pearlApi.getPearl(playerId).isSummoned()
-		   && e.getEntity().getLocation().getWorld().equals(pearlApi.getPearlConfig().getPrisonWorld())){
+
+		if (pearlApi.isPlayerExiled(playerId)
+				&& pearlApi.getPearl(playerId).getPearlType() == PearlType.PRISON
+				&& !pearlApi.getPearl(playerId).isSummoned()
+				&& e.getEntity().getLocation().getWorld().equals(pearlApi.getPearlConfig().getPrisonWorld())) {
 			return;
 		}
 
 		// These will be priority sorted according to the configured algorithm
 		List<Player> damagers = pearlApi.getDamageLogger().getSortedDamagers(playerId);
-		
+
 		// Check is player is already exiled
 		if (pearlApi.isPlayerExiled(playerId)) {
 			//Reset bed of exiled player if killer is not null
 			if (!damagers.isEmpty() && pearlApi.getPearlConfig().canPerform(ExileRule.SPAWN_RESET) && pearlApi.getPearl(playerId).getPearlType() == PearlType.EXILE) {
-				pearl.getPlayer().setBedSpawnLocation(null,true);
-				for(Player damager : damagers) {
+				pearl.getPlayer().setBedSpawnLocation(null, true);
+				for (Player damager : damagers) {
 					msg(damager, Lang.pearlAlreadyPearled, pearlApi.getRealPlayerName(playerId));
 				}
 				return;
 			}
 		}
 
-		for(Player damager : damagers) {
+		for (Player damager : damagers) {
 			int firstpearl = Integer.MAX_VALUE;
 			for (Entry<Integer, ? extends ItemStack> entry : damager.getInventory().all(Material.ENDER_PEARL).entrySet()) {
 
@@ -684,7 +692,7 @@ public class PlayerListener implements Listener, Configurable {
 
 			// Check if pearl in the hotbar
 			if (pearlApi.getPearlConfig().getMustPrisonPearlHotBar() && firstpearl > 8) {
-				continue; 
+				continue;
 			}
 
 			pearl = pearlApi.exilePlayer(playerId, damager);
@@ -693,10 +701,10 @@ public class PlayerListener implements Listener, Configurable {
 				// exilePlayer already handles the case where this is a pearl steal
 				// and will not return null if it is, so we don't check that here
 				if (pearlApi.isPlayerExiled(playerId)) {
-					for(Player dmgr : damagers) {
-						if(pearlApi.getPearlConfig().getShouldAnnounceExileLocation()){
+					for (Player dmgr : damagers) {
+						if (pearlApi.getPearlConfig().getShouldAnnounceExileLocation()) {
 							msg(dmgr, Lang.pearlAlreadyPearledAtLocation, pearlApi.getRealPlayerName(playerId), pearlApi.getPearl(playerId).getLocationDescription());
-						}else{
+						} else {
 							msg(dmgr, Lang.pearlAlreadyPearled, pearlApi.getRealPlayerName(playerId));
 						}
 					}
@@ -709,7 +717,7 @@ public class PlayerListener implements Listener, Configurable {
 
 		if (killer != null) {
 			// Notify other damagers if they were not awarded the pearl
-			for(Player damager : damagers) {
+			for (Player damager : damagers) {
 				if (damager != killer) {
 					msg(damager, Lang.pearlYouDamagedNotAwarded, pearlApi.getRealPlayerName(playerId), pearlApi.getRealPlayerName(killer.getUniqueId()));
 				}
@@ -723,7 +731,7 @@ public class PlayerListener implements Listener, Configurable {
 
 			// Scan for the smallest stack of normal ender pearls
 			for (Entry<Integer, ? extends ItemStack> entry :
-				inv.all(Material.ENDER_PEARL).entrySet()) {
+					inv.all(Material.ENDER_PEARL).entrySet()) {
 				ItemStack newstack = entry.getValue();
 				int newstacknum = entry.getKey();
 				if (newstack.getEnchantmentLevel(Enchantment.DURABILITY) == 0) {
@@ -778,19 +786,20 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Handles logging in players
+	 *
 	 * @param e The event args
 	 */
-	@EventHandler(priority=EventPriority.MONITOR, ignoreCancelled = true)
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onPlayerJoin(PlayerJoinEvent e) {
 		UUID uid = e.getPlayer().getUniqueId();
 		ExilePearl pearl = pearlApi.getPearl(uid);
 		if (pearl != null && pearl.getFreedOffline()) {
 			msg(pearl.getPlayer(), Lang.pearlYouWereFreed);
-			pearlApi.freePearl(pearl,PearlFreeReason.FREED_OFFLINE);
+			pearlApi.freePearl(pearl, PearlFreeReason.FREED_OFFLINE);
 			removeHelpItem(pearl.getPlayer());
 		} else if (pearl != null) {
 			pearl.setLastOnline(new Date());
-			if(pearl.getPearlType() == PearlType.PRISON && !pearl.isSummoned() && 
+			if (pearl.getPearlType() == PearlType.PRISON && !pearl.isSummoned() &&
 					!e.getPlayer().getLocation().getWorld().equals(pearlApi.getPearlConfig().getPrisonWorld())) {
 				SpawnUtil.spawnPlayer(pearl.getPlayer(), pearlApi.getPearlConfig().getPrisonWorld());
 			}
@@ -799,6 +808,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Frees pearls when right-clicked
+	 *
 	 * @param e The event argst
 	 */
 	@EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
@@ -810,7 +820,7 @@ public class PlayerListener implements Listener, Configurable {
 		if (e.getAction() == Action.RIGHT_CLICK_BLOCK) {
 			Material m = e.getClickedBlock().getType();
 			if (e.getClickedBlock().getState() instanceof BlockInventoryHolder ||
-				m == Material.CRAFTING_TABLE || m == Material.ANVIL || m == Material.ENCHANTING_TABLE || m == Material.BEACON) {
+					m == Material.CRAFTING_TABLE || m == Material.ANVIL || m == Material.ENCHANTING_TABLE || m == Material.BEACON) {
 				return;
 			}
 		} else if (e.getAction() != Action.RIGHT_CLICK_AIR) {
@@ -834,6 +844,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Prevent pearling with an exile pearl
+	 *
 	 * @param e The event
 	 */
 	@EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -842,7 +853,7 @@ public class PlayerListener implements Listener, Configurable {
 			return;
 		}
 
-		final Player p = (Player)e.getEntity().getShooter();
+		final Player p = (Player) e.getEntity().getShooter();
 		if (p == null) {
 			return;
 		}
@@ -867,9 +878,10 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Handles new prison pearl events
+	 *
 	 * @param e The event args
 	 */
-	@EventHandler(priority=EventPriority.MONITOR, ignoreCancelled = true)
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onPlayerPearled(PlayerPearledEvent e) {
 
 		Player imprisoned = e.getPearl().getPlayer();
@@ -885,16 +897,18 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Handled exiled players re-spawning
+	 *
 	 * @param e The event args
 	 */
-	@EventHandler(priority=EventPriority.MONITOR, ignoreCancelled = true)
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onPlayerRespawn(PlayerRespawnEvent e) {
 		Player player = e.getPlayer();
 		if (pearlApi.isPlayerExiled(player)) {
-			if(useHelpItem) giveHelpItem(player);
+			if (useHelpItem) giveHelpItem(player);
 			ExilePearl pearl = pearlApi.getPearl(player.getUniqueId());
-			if(pearl.getPearlType() == PearlType.PRISON) e.setRespawnLocation(SpawnUtil.chooseSpawn(pearlApi.getPearlConfig().getPrisonWorld()));
-			if(pearl.isSummoned()) {
+			if (pearl.getPearlType() == PearlType.PRISON)
+				e.setRespawnLocation(SpawnUtil.chooseSpawn(pearlApi.getPearlConfig().getPrisonWorld()));
+			if (pearl.isSummoned()) {
 				pearl.setSummoned(false);
 				pearl.setReturnLocation(null);
 			}
@@ -904,6 +918,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Removes the help item when dropped
+	 *
 	 * @param e The event args
 	 */
 	@EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -916,6 +931,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Prevents placing the help item
+	 *
 	 * @param e The event args
 	 */
 	@EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -928,9 +944,10 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Handles player freed events
+	 *
 	 * @param e The event args
 	 */
-	@EventHandler(priority=EventPriority.MONITOR, ignoreCancelled = true)
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onPlayerFreed(PlayerFreedEvent e) {
 		Player player = e.getPearl().getPlayer();
 		if (player != null && player.isOnline()) {
@@ -942,14 +959,15 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Handles a pearl move event
+	 *
 	 * @param e The event args
 	 */
-	@EventHandler(priority=EventPriority.MONITOR, ignoreCancelled = true)
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onPearlMoved(PearlMovedEvent e) {
 		e.getPearl().performBroadcast();
 	}
 
-	@EventHandler(priority=EventPriority.MONITOR, ignoreCancelled = true)
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onPrepareCraftPearl(PrepareItemCraftEvent e) {
 		CraftingInventory inv = e.getInventory();
 		if (inv == null) {
@@ -987,15 +1005,15 @@ public class PlayerListener implements Listener, Configurable {
 
 		ItemMap invItems = new ItemMap(inv);
 
-		if(pearl.getPearlType() == PearlType.EXILE) {
+		if (pearl.getPearlType() == PearlType.EXILE) {
 			RepairMaterial upgradeItem = null;
-			for(RepairMaterial item : upgradeMaterials) {
-				if(invItems.getAmount(item.getStack()) >= item.getRepairAmount()) {
+			for (RepairMaterial item : upgradeMaterials) {
+				if (invItems.getAmount(item.getStack()) >= item.getRepairAmount()) {
 					upgradeItem = item;
 					break;
 				}
 			}
-			if(upgradeItem != null) {
+			if (upgradeItem != null) {
 				ItemStack resultStack = pearl.createItemStack();
 				ItemMeta im = resultStack.getItemMeta();
 				im.setLore(pearlApi.getLoreProvider().generateLoreWithModifiedType(pearl, PearlType.PRISON));
@@ -1014,7 +1032,7 @@ public class PlayerListener implements Listener, Configurable {
 		RepairMaterial repairItem = null;
 
 		// Find the repair material that is being used for crafting
-		for(RepairMaterial item : repairMaterials.get(pearl.getPearlType())) {
+		for (RepairMaterial item : repairMaterials.get(pearl.getPearlType())) {
 			if (invItems.getAmount(item.getStack()) > 0) {
 				repairItem = item;
 				break;
@@ -1041,7 +1059,7 @@ public class PlayerListener implements Listener, Configurable {
 		e.getInventory().setResult(resultStack);
 	}
 
-	@EventHandler(priority=EventPriority.MONITOR, ignoreCancelled = true)
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onCraftPearl(CraftItemEvent e) {
 		CraftingInventory inv = e.getInventory();
 		ItemStack result = inv.getResult();
@@ -1056,7 +1074,7 @@ public class PlayerListener implements Listener, Configurable {
 		RepairMaterial repairItem = null;
 
 		// Find the repair material that is being used for crafting
-		for(RepairMaterial item : repairMaterials.get(pearl.getPearlType())) {
+		for (RepairMaterial item : repairMaterials.get(pearl.getPearlType())) {
 			if (invItems.getAmount(item.getStack()) > 0) {
 				repairItem = item;
 				break;
@@ -1068,7 +1086,7 @@ public class PlayerListener implements Listener, Configurable {
 			int maxHealth = pearlApi.getPearlConfig().getPearlHealthMaxValue();
 			int repairPerItem = repairItem.getRepairAmount();
 			int repairMatsAvailable = invItems.getAmount(repairItem.getStack());
-			int repairMatsToUse = Math.min((int)Math.ceil((maxHealth - pearl.getHealth()) / (double)repairPerItem), repairMatsAvailable);
+			int repairMatsToUse = Math.min((int) Math.ceil((maxHealth - pearl.getHealth()) / (double) repairPerItem), repairMatsAvailable);
 			int repairAmount = repairMatsToUse * repairPerItem;
 			repairAmount = (int) Math.ceil(repairAmount / pearl.getLongTimeMultiplier());
 
@@ -1080,7 +1098,7 @@ public class PlayerListener implements Listener, Configurable {
 					ItemStack is = inv.getItem(i);
 					if (is != null) {
 						int numLeft = repairMatsAvailable - repairMatsToUse;
-						Player player = (Player)(e.getWhoClicked());
+						Player player = (Player) (e.getWhoClicked());
 						int openSlot = player.getInventory().firstEmpty();
 						ItemStack giveBack = repairItem.getStack().clone();
 						giveBack.setAmount(numLeft);
@@ -1103,36 +1121,36 @@ public class PlayerListener implements Listener, Configurable {
 			pearlApi.log("The pearl for player %s was repaired by %d points.", pearl.getPlayerName(), repairAmount);
 			return;
 		}
-		if(pearl.getPearlType() == PearlType.PRISON) {
+		if (pearl.getPearlType() == PearlType.PRISON) {
 			//can't be upgraded
 			return;
 		}
 		//try to find an upgrade recipe
 		RepairMaterial upgradeItem = null;
 
-		for(RepairMaterial item : upgradeMaterials) {
-			if(invItems.getAmount(item.getStack()) >= item.getRepairAmount()) {
+		for (RepairMaterial item : upgradeMaterials) {
+			if (invItems.getAmount(item.getStack()) >= item.getRepairAmount()) {
 				upgradeItem = item;
 				break;
 			}
 		}
 
-		if(upgradeItem != null) {
+		if (upgradeItem != null) {
 			//just using the repair amount as a stack size because fuck it
 			int upgradeMatsRequired = upgradeItem.getRepairAmount();
 			int upgradeMatsAvailable = invItems.getAmount(upgradeItem.getStack());
-			if(upgradeMatsAvailable < upgradeMatsRequired) return;
+			if (upgradeMatsAvailable < upgradeMatsRequired) return;
 			inv.remove(Material.ENDER_PEARL);
-			if(upgradeMatsAvailable > upgradeMatsRequired) {
-				for(int i = 0; i < inv.getContents().length; i++) {
+			if (upgradeMatsAvailable > upgradeMatsRequired) {
+				for (int i = 0; i < inv.getContents().length; i++) {
 					ItemStack is = inv.getItem(i);
-					if(is != null) {
+					if (is != null) {
 						int numLeft = upgradeMatsAvailable - upgradeMatsRequired;
-						Player player = (Player)e.getWhoClicked();
+						Player player = (Player) e.getWhoClicked();
 						int openSlot = player.getInventory().firstEmpty();
 						ItemStack giveBack = upgradeItem.getStack().clone();
 						giveBack.setAmount(numLeft);
-						if(openSlot >= 0) {
+						if (openSlot >= 0) {
 							player.getInventory().setItem(openSlot, giveBack);
 							msg(player, "<i>The remaining %d upgrade items were put back in your inventory.", numLeft);
 						} else {
@@ -1147,9 +1165,9 @@ public class PlayerListener implements Listener, Configurable {
 			pearl.setPearlType(PearlType.PRISON);
 			pearl.setHealth(pearlApi.getPearlConfig().getPearlHealthStartValue());
 			inv.setResult(pearl.createItemStack());
-			if(pearl.getPlayer() != null && pearl.getPlayer().isOnline()) {
+			if (pearl.getPlayer() != null && pearl.getPlayer().isOnline()) {
 				SpawnUtil.spawnPlayer(pearl.getPlayer(), pearlApi.getPearlConfig().getPrisonWorld());
-				msg(pearl.getPlayer(), "<i>You've been imprisoned in the end by %s.", ((Player)e.getWhoClicked()).getDisplayName());
+				msg(pearl.getPlayer(), "<i>You've been imprisoned in the end by %s.", ((Player) e.getWhoClicked()).getDisplayName());
 			}
 			pearlApi.log("The pearl for player %s was upgraded to a Prison Pearl.", pearl.getPlayerName());
 		}
@@ -1158,7 +1176,7 @@ public class PlayerListener implements Listener, Configurable {
 	@EventHandler
 	public void onPlayerPortal(PlayerPortalEvent event) {
 		ExilePearl pearl = pearlApi.getPearl(event.getPlayer().getUniqueId());
-		if(pearl != null && pearl.getPearlType() == PearlType.PRISON && event.getCause() == TeleportCause.END_PORTAL) {
+		if (pearl != null && pearl.getPearlType() == PearlType.PRISON && event.getCause() == TeleportCause.END_PORTAL) {
 			event.setTo(SpawnUtil.chooseSpawn(pearlApi.getPearlConfig().getPrisonWorld()));
 		}
 	}
@@ -1175,12 +1193,12 @@ public class PlayerListener implements Listener, Configurable {
 			im.addItemFlags(ItemFlag.HIDE_ENCHANTS);
 			resultItem.setItemMeta(im);
 
-			
-			for(PearlType type : PearlType.values()) {
+
+			for (PearlType type : PearlType.values()) {
 				repairMaterials.put(type, config.getRepairMaterials(type));
 			}
-			for(Set<RepairMaterial> set : repairMaterials.values()) {
-				for(RepairMaterial mat : set) {
+			for (Set<RepairMaterial> set : repairMaterials.values()) {
+				for (RepairMaterial mat : set) {
 					ShapelessRecipe r1 = new ShapelessRecipe(new NamespacedKey(pearlApi, "repairPearl"), resultItem);
 					r1.addIngredient(1, Material.ENDER_PEARL);
 					r1.addIngredient(1, mat.getStack().getData());
@@ -1202,8 +1220,8 @@ public class PlayerListener implements Listener, Configurable {
 
 			upgradeMaterials.addAll(config.getUpgradeMaterials());
 
-			for(RepairMaterial mat : upgradeMaterials) {
-				ShapelessRecipe r1 = new ShapelessRecipe(new NamespacedKey(pearlApi, "upgradePearl"),resultItem);
+			for (RepairMaterial mat : upgradeMaterials) {
+				ShapelessRecipe r1 = new ShapelessRecipe(new NamespacedKey(pearlApi, "upgradePearl"), resultItem);
 				r1.addIngredient(1, Material.ENDER_PEARL);
 				r1.addIngredient(1, mat.getStack().getData());
 
@@ -1217,13 +1235,14 @@ public class PlayerListener implements Listener, Configurable {
 		helpItemName = config.getHelpItemName();
 
 		helpItemText.clear();
-		for(String s : config.getHelpItemText()) {
+		for (String s : config.getHelpItemText()) {
 			helpItemText.add(TextUtil.parse(s));
 		}
 	}
 
 	/**
 	 * Checks whether an item is the help item
+	 *
 	 * @param is The item stack to check
 	 * @return true if the item is the help item
 	 */
@@ -1242,6 +1261,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Removes the item item from a player's inventory
+	 *
 	 * @param player The player
 	 */
 	private void removeHelpItem(Player player) {
@@ -1256,6 +1276,7 @@ public class PlayerListener implements Listener, Configurable {
 
 	/**
 	 * Gives the help item to a player
+	 *
 	 * @param player The player
 	 */
 	private void giveHelpItem(Player player) {
