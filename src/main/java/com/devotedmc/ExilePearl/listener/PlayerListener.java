@@ -538,6 +538,7 @@ public class PlayerListener implements Listener, Configurable {
 				// ShiftClicking into a furnace will not move the pearl into the furnace so the pearlHolder should not be updated
 				if (event.getClick().isShiftClick() && holder != null && holder.getInventory() instanceof FurnaceInventory) {
 					event.setCancelled(true);
+					event.getWhoClicked().sendMessage(ChatColor.RED + "You can not shift-click this pearl into a furnace.");
 					return;
 				}
 
